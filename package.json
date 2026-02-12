@@ -1,0 +1,46 @@
+{
+  "name": "com.qop.nodeapi",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "index.js",
+  "description": "",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "migrate:up": "node-pg-migrate up -m ./migrations",
+    "migrate:down": "node-pg-migrate down -m ./migrations",
+    "create:apikey": "tsx src/scripts/create-api-key.ts",
+    "create:project-apikey": "tsx src/scripts/create-project-api-key.ts",
+    "seed:demo": "tsx src/scripts/seed-demo-app.ts",
+    "tree": "node generate-tree.cjs"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.6.1",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.3",
+    "knex": "^3.1.0",
+    "multer": "^1.4.5-lts.1",
+    "node-fetch": "^3.3.2",
+    "node-pg-migrate": "^8.0.3",
+    "pg": "^8.16.3",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
+    "@types/cors": "^2.8.19",
+    "@types/express": "^4.17.21",
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/multer": "^1.4.12",
+    "@types/node": "^22.10.1",
+    "@types/pg": "^8.15.6",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.3"
+  }
+}
