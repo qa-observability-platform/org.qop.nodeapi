@@ -1,0 +1,63 @@
+com.qop.nodeapi/
+├── .env
+├── .gitignore
+├── generate-tree.cjs
+├── migrations
+│   ├── 1700000000000_init_qop_db.cjs
+│   ├── 1700000000001_add_application_api_keys.cjs
+│   ├── 1700000000002_add_created_at_to_test_runs.cjs
+│   ├── 1700000000003_add_saas_hierarchy.cjs
+│   ├── 1700000000004_add_timestamps_to_organizations.cjs
+│   └── 1700000000004_add_users_and_auth.cjs
+├── package.json
+├── src
+│   ├── app.ts
+│   ├── config
+│   │   └── env.ts
+│   ├── db
+│   │   └── pool.ts
+│   ├── index.ts
+│   ├── metrics
+│   │   └── ingestMetrics.ts
+│   ├── middleware
+│   │   ├── auth.middleware.ts
+│   │   ├── automationAuth.ts
+│   │   ├── projectAuth.ts
+│   │   ├── rbac.middleware.ts
+│   │   └── requestContext.ts
+│   ├── repositories
+│   │   ├── apiKeys.repository.ts
+│   │   ├── apps.repository.ts
+│   │   ├── organizations.repository.ts
+│   │   ├── projectApiKeys.repository.ts
+│   │   ├── projects.repository.ts
+│   │   ├── testCases.repository.ts
+│   │   ├── testRuns.repository.ts
+│   │   ├── tokens.repository.ts
+│   │   └── users.repository.ts
+│   ├── routes
+│   │   ├── applications.routes.ts
+│   │   ├── apps.routes.ts
+│   │   ├── health.routes.ts
+│   │   ├── ingest.routes.ts
+│   │   ├── organizations.routes.ts
+│   │   ├── projects.routes.ts
+│   │   ├── ready.routes.ts
+│   │   └── runs.routes.ts
+│   ├── scripts
+│   │   ├── create-api-key.ts
+│   │   ├── create-project-api-key.ts
+│   │   ├── seed-demo-app.ts
+│   │   └── test-live-ws-client.ts
+│   ├── services
+│   │   └── auth.service.ts
+│   ├── types
+│   │   ├── auth.ts
+│   │   └── roles.ts
+│   ├── utils
+│   │   ├── apiKey.ts
+│   │   └── logger.ts
+│   └── websocket
+│       ├── automationServer.ts
+│       └── liveServer.ts
+└── tsconfig.json
