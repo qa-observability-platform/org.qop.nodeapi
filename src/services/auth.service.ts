@@ -37,6 +37,7 @@ import type {
   AuthTokens,
   UserWithRoles,
   JwtPayload,
+  SessionTokenPayload,
 } from '../types/auth.js';
 import { UserRole } from '../types/roles.js';
 
@@ -199,6 +200,34 @@ export async function completePasswordReset(
 ): Promise<boolean> {
   const newPasswordHash = await bcrypt.hash(newPassword, SALT_ROUNDS);
   return resetPassword(token, newPasswordHash);
+}
+
+/**
+ * Generate a short-lived session token for WebSocket connections.
+ * Used by POST /auth/validate-key to give reporters a pre-validated token.
+ */
+export function generateSessionToken(payload: {
+  projectId: string;
+  orgId: string;
+  projectKey: string;
+  keyId: string;
+}): string {
+  return jwt.sign(
+    { ...payload, type: 'session' },
+    config.jwtSecret,
+    { expiresIn: '1h' } as SignOptions
+  );
+}
+
+/**
+ * Verify a session token from WebSocket connection query params.
+ */
+export function verifySessionToken(token: string): SessionTokenPayload {
+  const payload = jwt.verify(token, config.jwtSecret) as SessionTokenPayload;
+  if (payload.type !== 'session') {
+    throw new Error('Invalid token type');
+  }
+  return payload;
 }
 
 /**

@@ -26,7 +26,14 @@ import {
   verifyEmail,
   initiatePasswordReset,
   completePasswordReset,
+  generateSessionToken,
 } from '../services/auth.service.js';
+import {
+  findProjectByApiKey,
+  getApiKeyMetadata,
+} from '../repositories/projectApiKeys.repository.js';
+import { config } from '../config/env.js';
+import { logger } from '../utils/logger.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { getUserWithRoles } from '../repositories/users.repository.js';
 import { UserRole } from '../types/roles.js';
@@ -421,6 +428,92 @@ export function registerAuthRoutes(app: Express) {
     } catch (error) {
       console.error('[Auth] Password change failed:', error);
       res.status(500).json({ error: 'Failed to change password' });
+    }
+  });
+
+  /**
+   * Validate API Key - Returns connection details for test reporters.
+   * No JWT required — this IS the auth mechanism for reporters.
+   *
+   * Request: { apiKey, appKey?, runnerType? }
+   * Response: { wsUrl, apiBaseUrl, orgId, projectId, projectKey, applicationId?, sessionToken }
+   */
+  app.post('/auth/validate-key', async (req, res) => {
+    try {
+      const { apiKey, appKey, runnerType } = req.body;
+
+      if (!apiKey) {
+        return res.status(400).json({ error: 'apiKey is required' });
+      }
+
+      // 1. Validate API key and get project context
+      const project = await findProjectByApiKey(apiKey);
+      if (!project) {
+        return res.status(401).json({ error: 'Invalid or revoked API key' });
+      }
+
+      // 2. Get key metadata (ws_endpoint, api_base_url)
+      const keyMeta = await getApiKeyMetadata(apiKey);
+      if (!keyMeta) {
+        return res.status(401).json({ error: 'Invalid or revoked API key' });
+      }
+
+      // 3. Resolve application if appKey provided
+      let applicationId: string | undefined;
+      if (appKey) {
+        const appResult = await pool.query<{
+          id: string;
+          runner_type: string;
+        }>(
+          `SELECT id, runner_type FROM applications
+           WHERE project_id = $1 AND app_key = $2
+           LIMIT 1`,
+          [project.projectId, appKey]
+        );
+
+        if (appResult.rows.length > 0) {
+          applicationId = appResult.rows[0].id;
+
+          // Validate runner type if both provided
+          if (runnerType && appResult.rows[0].runner_type !== runnerType) {
+            return res.status(400).json({
+              error: `Runner type mismatch. Expected: ${appResult.rows[0].runner_type}, Got: ${runnerType}`,
+            });
+          }
+        } else if (runnerType) {
+          // Auto-create application
+          const createResult = await pool.query<{ id: string }>(
+            `INSERT INTO applications (project_id, org_id, name, app_key, runner_type)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING id`,
+            [project.projectId, project.orgId, appKey, appKey, runnerType]
+          );
+          applicationId = createResult.rows[0].id;
+          logger.info('Auto-created application via validate-key', { applicationId, appKey });
+        }
+      }
+
+      // 4. Generate session token
+      const sessionToken = generateSessionToken({
+        projectId: project.projectId,
+        orgId: project.orgId,
+        projectKey: project.projectKey,
+        keyId: keyMeta.id,
+      });
+
+      // 5. Return connection details
+      res.json({
+        wsUrl: keyMeta.wsEndpoint || config.wsEndpoint,
+        apiBaseUrl: keyMeta.apiBaseUrl || config.apiBaseUrl,
+        orgId: project.orgId,
+        projectId: project.projectId,
+        projectKey: project.projectKey,
+        applicationId,
+        sessionToken,
+      });
+    } catch (error: any) {
+      console.error('[Auth] Validate key failed:', error);
+      res.status(500).json({ error: 'Failed to validate API key' });
     }
   });
 }

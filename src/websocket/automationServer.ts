@@ -1,6 +1,7 @@
 // src/websocket/automationServer.ts (Modified - Key Changes)
 import { WebSocketServer, WebSocket } from 'ws';
 import { findProjectByApiKey } from '../repositories/projectApiKeys.repository.js';
+import { verifySessionToken } from '../services/auth.service.js';
 import { pool } from '../db/pool.js';
 import {
   getOrCreateTestRun,
@@ -57,29 +58,65 @@ export function setupAutomationWebSocket() {
 
     try {
       const url = new URL(req.url ?? '', 'http://localhost');
+      const sessionToken = url.searchParams.get('sessionToken') ?? undefined;
       const apiKey = url.searchParams.get('apiKey') ?? undefined;
       const projectKey = url.searchParams.get('projectKey') ?? undefined;
       const appKey = url.searchParams.get('appKey') ?? undefined;
       const runnerType = url.searchParams.get('runnerType') ?? 'playwright';
 
-      if (!apiKey || !projectKey || !appKey) {
-        socket.send(
-          JSON.stringify({
-            type: 'error',
-            message: 'Missing apiKey, projectKey, or appKey',
-          })
-        );
-        socket.close();
-        return;
-      }
+      let projectId: string;
+      let resolvedProjectKey: string;
+      let orgId: string;
 
-      // Validate project via API key
-      const project = await findProjectByApiKey(apiKey);
-      if (!project || project.projectKey !== projectKey) {
+      if (sessionToken) {
+        // NEW MODE: session token from POST /auth/validate-key
+        try {
+          const session = verifySessionToken(sessionToken);
+          projectId = session.projectId;
+          resolvedProjectKey = session.projectKey;
+          orgId = session.orgId;
+        } catch (err) {
+          socket.send(
+            JSON.stringify({
+              type: 'error',
+              message: 'Invalid or expired session token',
+            })
+          );
+          socket.close();
+          return;
+        }
+
+        if (!appKey) {
+          socket.send(
+            JSON.stringify({
+              type: 'error',
+              message: 'Missing appKey',
+            })
+          );
+          socket.close();
+          return;
+        }
+      } else if (apiKey && projectKey && appKey) {
+        // LEGACY MODE: apiKey + projectKey + appKey query params
+        const project = await findProjectByApiKey(apiKey);
+        if (!project || project.projectKey !== projectKey) {
+          socket.send(
+            JSON.stringify({
+              type: 'error',
+              message: 'Invalid credentials or project mismatch',
+            })
+          );
+          socket.close();
+          return;
+        }
+        projectId = project.projectId;
+        resolvedProjectKey = project.projectKey;
+        orgId = project.orgId;
+      } else {
         socket.send(
           JSON.stringify({
             type: 'error',
-            message: 'Invalid credentials or project mismatch',
+            message: 'Missing authentication. Provide sessionToken or apiKey+projectKey+appKey',
           })
         );
         socket.close();
@@ -98,7 +135,7 @@ export function setupAutomationWebSocket() {
           WHERE project_id = $1 AND app_key = $2
           LIMIT 1
         `,
-        [project.projectId, appKey]
+        [projectId, appKey]
       );
 
       let applicationId: string;
@@ -123,7 +160,7 @@ export function setupAutomationWebSocket() {
             VALUES ($1, $2, $3, $4, $5)
             RETURNING id, name, runner_type
           `,
-          [project.projectId, project.orgId, appKey, appKey, runnerType]
+          [projectId, orgId, appKey, appKey, runnerType]
         );
 
         applicationId = createResult.rows[0].id;
@@ -151,17 +188,17 @@ export function setupAutomationWebSocket() {
 
       client = {
         socket,
-        projectId: project.projectId,
-        projectKey: project.projectKey,
+        projectId,
+        projectKey: resolvedProjectKey,
         applicationId,
-        orgId: project.orgId,
+        orgId,
         appKey,
         applicationName,
         runnerType,
       };
 
       logger.info('Ingest WS connected', {
-        projectKey: project.projectKey,
+        projectKey: resolvedProjectKey,
         appKey,
         runnerType,
       });

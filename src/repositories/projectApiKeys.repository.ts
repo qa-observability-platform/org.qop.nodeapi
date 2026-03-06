@@ -38,7 +38,8 @@ export function hashApiKey(apiKey: string): string {
  */
 export async function createApiKey(
   projectId: string,
-  label: string
+  label: string,
+  endpoints?: { wsEndpoint?: string; apiBaseUrl?: string }
 ): Promise<{ apiKey: ProjectApiKey; plainKey: string }> {
   const plainKey = generateApiKey();
   const keyHash = hashApiKey(plainKey);
@@ -53,8 +54,8 @@ export async function createApiKey(
     last_used_at: string | null;
   }>(
     `
-      INSERT INTO project_api_keys (project_id, key_hash, label)
-      VALUES ($1, $2, $3)
+      INSERT INTO project_api_keys (project_id, key_hash, label, ws_endpoint, api_base_url)
+      VALUES ($1, $2, $3, $4, $5)
       RETURNING
         id,
         project_id,
@@ -64,12 +65,45 @@ export async function createApiKey(
         revoked_at,
         last_used_at
     `,
-    [projectId, keyHash, label]
+    [projectId, keyHash, label, endpoints?.wsEndpoint ?? null, endpoints?.apiBaseUrl ?? null]
   );
 
   return {
     apiKey: mapApiKeyRow(result.rows[0]),
     plainKey,
+  };
+}
+
+/**
+ * Get API key metadata (ws_endpoint, api_base_url) for validate-key endpoint
+ */
+export async function getApiKeyMetadata(apiKey: string): Promise<{
+  id: string;
+  wsEndpoint: string | null;
+  apiBaseUrl: string | null;
+} | null> {
+  const keyHash = hashApiKey(apiKey);
+
+  const result = await pool.query<{
+    id: string;
+    ws_endpoint: string | null;
+    api_base_url: string | null;
+  }>(
+    `
+      SELECT id, ws_endpoint, api_base_url
+      FROM project_api_keys
+      WHERE key_hash = $1 AND revoked_at IS NULL
+      LIMIT 1
+    `,
+    [keyHash]
+  );
+
+  if (result.rows.length === 0) return null;
+
+  return {
+    id: result.rows[0].id,
+    wsEndpoint: result.rows[0].ws_endpoint,
+    apiBaseUrl: result.rows[0].api_base_url,
   };
 }
 

@@ -13,6 +13,7 @@ import {
   listApiKeysByProject,
   revokeApiKey,
 } from '../repositories/projectApiKeys.repository.js';
+import { config } from '../config/env.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { requirePermission, requireOrgMembership } from '../middleware/rbac.middleware.js';
 import { Permission } from '../types/roles.js';
@@ -218,7 +219,10 @@ export function registerProjectsRoutes(app: Express) {
           return res.status(404).json({ error: 'Project not found' });
         }
 
-        const { apiKey, plainKey } = await createApiKey(project.id, label);
+        const { apiKey, plainKey } = await createApiKey(project.id, label, {
+          wsEndpoint: config.wsEndpoint,
+          apiBaseUrl: config.apiBaseUrl,
+        });
 
         res.status(201).json({
           apiKey,

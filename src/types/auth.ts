@@ -51,3 +51,13 @@ export interface ChangePasswordInput {
   currentPassword: string;
   newPassword: string;
 }
+
+export interface SessionTokenPayload {
+  type: 'session';
+  projectId: string;
+  orgId: string;
+  projectKey: string;
+  keyId: string;
+  iat?: number;
+  exp?: number;
+}

@@ -419,7 +419,25 @@ export function registerRunsRoutes(app: Express) {
       const { days = '30' } = req.query;
       const daysLimit = Math.min(parseInt(days as string, 10), 90);
 
+      // CTE: get the most recent run per application (no days filter — always show last run stats)
+      // and separately count total runs within the days window
       const query = `
+        WITH last_run AS (
+          SELECT DISTINCT ON (application_id)
+            id, application_id, created_at
+          FROM test_runs
+          ORDER BY application_id, created_at DESC
+        ),
+        last_run_stats AS (
+          SELECT
+            lr.application_id,
+            COALESCE(SUM(CASE WHEN tce.status = 'passed' THEN 1 ELSE 0 END), 0) as passed,
+            COALESCE(SUM(CASE WHEN tce.status = 'failed' THEN 1 ELSE 0 END), 0) as failed,
+            COALESCE(SUM(CASE WHEN tce.status = 'skipped' THEN 1 ELSE 0 END), 0) as skipped
+          FROM last_run lr
+          LEFT JOIN test_case_executions tce ON tce.test_run_id = lr.id
+          GROUP BY lr.application_id
+        )
         SELECT
           a.id as application_id,
           a.name as application_name,
@@ -429,40 +447,45 @@ export function registerRunsRoutes(app: Express) {
           COALESCE(COUNT(DISTINCT tcm.id), 0) as unique_test_count,
           COALESCE(COUNT(DISTINCT tr.id), 0) as total_runs,
           MAX(tr.created_at) as last_run_at,
-          COALESCE(SUM(CASE WHEN tce.status = 'passed' THEN 1 ELSE 0 END), 0) as total_passed,
-          COALESCE(SUM(CASE WHEN tce.status = 'failed' THEN 1 ELSE 0 END), 0) as total_failed,
-          COALESCE(SUM(CASE WHEN tce.status = 'skipped' THEN 1 ELSE 0 END), 0) as total_skipped
+          COALESCE(lrs.passed, 0) as last_run_passed,
+          COALESCE(lrs.failed, 0) as last_run_failed,
+          COALESCE(lrs.skipped, 0) as last_run_skipped
         FROM applications a
         JOIN projects p ON p.id = a.project_id
         LEFT JOIN test_case_master tcm ON tcm.application_id = a.id
         LEFT JOIN test_runs tr ON tr.application_id = a.id
           AND tr.created_at >= NOW() - INTERVAL '1 day' * $1
-        LEFT JOIN test_case_executions tce ON tce.test_run_id = tr.id
-        GROUP BY a.id, a.name, a.app_key, a.runner_type, p.project_key
+        LEFT JOIN last_run_stats lrs ON lrs.application_id = a.id
+        GROUP BY a.id, a.name, a.app_key, a.runner_type, p.project_key,
+                 lrs.passed, lrs.failed, lrs.skipped
         ORDER BY last_run_at DESC NULLS LAST, a.name ASC
       `;
 
       const result = await pool.query(query, [daysLimit]);
 
-      const applications = result.rows.map((row) => ({
-        applicationId: row.application_id,
-        applicationName: row.application_name,
-        appKey: row.app_key,
-        runnerType: row.runner_type,
-        projectKey: row.project_key,
-        uniqueTestCount: parseInt(row.unique_test_count, 10),
-        totalRuns: parseInt(row.total_runs, 10),
-        lastRunAt: row.last_run_at,
-        stats: {
-          totalExecutions: parseInt(row.total_passed, 10) + parseInt(row.total_failed, 10) + parseInt(row.total_skipped, 10),
-          passed: parseInt(row.total_passed, 10),
-          failed: parseInt(row.total_failed, 10),
-          skipped: parseInt(row.total_skipped, 10),
-          passRate: (parseInt(row.total_passed, 10) + parseInt(row.total_failed, 10) + parseInt(row.total_skipped, 10)) > 0
-            ? Math.round((parseInt(row.total_passed, 10) / (parseInt(row.total_passed, 10) + parseInt(row.total_failed, 10) + parseInt(row.total_skipped, 10))) * 100)
-            : 0,
-        },
-      }));
+      const applications = result.rows.map((row) => {
+        const passed = parseInt(row.last_run_passed, 10);
+        const failed = parseInt(row.last_run_failed, 10);
+        const skipped = parseInt(row.last_run_skipped, 10);
+        const total = passed + failed + skipped;
+        return {
+          applicationId: row.application_id,
+          applicationName: row.application_name,
+          appKey: row.app_key,
+          runnerType: row.runner_type,
+          projectKey: row.project_key,
+          uniqueTestCount: parseInt(row.unique_test_count, 10),
+          totalRuns: parseInt(row.total_runs, 10),
+          lastRunAt: row.last_run_at,
+          stats: {
+            totalExecutions: total,
+            passed,
+            failed,
+            skipped,
+            passRate: total > 0 ? Math.round((passed / total) * 100) : 0,
+          },
+        };
+      });
 
       res.json({
         applications,

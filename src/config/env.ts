@@ -13,6 +13,10 @@ export const config = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '15m',
   refreshTokenExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '7d',
   
+  // Server endpoints (for API key validate-key response)
+  wsEndpoint: process.env.WS_ENDPOINT || `ws://localhost:${parseInt(process.env.QOP_NODEAPI_PORT || '4000', 10)}/ws/ingest`,
+  apiBaseUrl: process.env.API_BASE_URL || `http://localhost:${parseInt(process.env.QOP_NODEAPI_PORT || '4000', 10)}`,
+
   // Environment
   nodeEnv: process.env.NODE_ENV || 'development',
   isDevelopment: process.env.NODE_ENV !== 'production',

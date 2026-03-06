@@ -183,23 +183,20 @@ router.get('/:applicationId', async (req, res) => {
         ch.comparison_name,
         ch.is_bookmarked,
         ch.notes,
+        ch.tags,
         ch.risk_score_data,
         ch.created_at,
         ch.updated_at,
-        ch.last_viewed_at,
         ch.view_count,
         tr_current.run_id as current_run_number,
         tr_current.job_number as current_job_number,
         tr_current.branch as current_branch,
         tr_compare.run_id as compare_run_number,
         tr_compare.job_number as compare_job_number,
-        tr_compare.branch as compare_branch,
-        array_agg(DISTINCT ct.name) FILTER (WHERE ct.name IS NOT NULL) as tags
+        tr_compare.branch as compare_branch
       FROM comparison_history ch
       LEFT JOIN test_runs tr_current ON ch.current_run_id = tr_current.id
       LEFT JOIN test_runs tr_compare ON ch.compare_run_id = tr_compare.id
-      LEFT JOIN comparison_history_tags cht ON ch.id = cht.comparison_id
-      LEFT JOIN comparison_tags ct ON cht.tag_id = ct.id
       WHERE ch.application_id = $1
     `;
 
@@ -211,8 +208,6 @@ router.get('/:applicationId', async (req, res) => {
     }
 
     query += `
-      GROUP BY ch.id, tr_current.run_id, tr_current.job_number, tr_current.branch,
-               tr_compare.run_id, tr_compare.job_number, tr_compare.branch
       ORDER BY ch.created_at DESC
       LIMIT $${paramIndex}
     `;
@@ -244,7 +239,6 @@ router.get('/:applicationId', async (req, res) => {
         tags: row.tags || [],
         createdAt: row.created_at,
         updatedAt: row.updated_at,
-        lastViewedAt: row.last_viewed_at,
         viewCount: row.view_count
       }))
     });
@@ -270,19 +264,11 @@ router.get('/detail/:id', async (req, res) => {
       `SELECT
         ch.*,
         tr_current.run_id as current_run_number,
-        tr_compare.run_id as compare_run_number,
-        array_agg(DISTINCT jsonb_build_object(
-          'name', ct.name,
-          'color', ct.color,
-          'description', ct.description
-        )) FILTER (WHERE ct.name IS NOT NULL) as tags
+        tr_compare.run_id as compare_run_number
       FROM comparison_history ch
       LEFT JOIN test_runs tr_current ON ch.current_run_id = tr_current.id
       LEFT JOIN test_runs tr_compare ON ch.compare_run_id = tr_compare.id
-      LEFT JOIN comparison_history_tags cht ON ch.id = cht.comparison_id
-      LEFT JOIN comparison_tags ct ON cht.tag_id = ct.id
-      WHERE ch.id = $1
-      GROUP BY ch.id, tr_current.run_id, tr_compare.run_id`,
+      WHERE ch.id = $1`,
       [id]
     );
 
@@ -295,7 +281,7 @@ router.get('/detail/:id', async (req, res) => {
 
     // Increment view count
     await pool.query(
-      `SELECT increment_comparison_view_count($1)`,
+      `UPDATE comparison_history SET view_count = view_count + 1 WHERE id = $1`,
       [id]
     );
 
@@ -316,7 +302,6 @@ router.get('/detail/:id', async (req, res) => {
         tags: comparison.tags || [],
         createdAt: comparison.created_at,
         updatedAt: comparison.updated_at,
-        lastViewedAt: comparison.last_viewed_at,
         viewCount: comparison.view_count + 1, // Include the current view
         currentRunNumber: comparison.current_run_number,
         compareRunNumber: comparison.compare_run_number
