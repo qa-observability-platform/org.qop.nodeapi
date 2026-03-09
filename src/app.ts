@@ -29,13 +29,20 @@ export function createApp() {
   const app = express();
 
   // CRITICAL: Enable CORS FIRST before any other middleware
+  const allowedOrigins = (process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000')
+    .split(',')
+    .map(o => o.trim());
+
   app.use(cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (like mobile apps, Postman, or same-origin)
       if (!origin) return callback(null, true);
 
-      // Allow all origins in development
-      callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS: origin '${origin}' not allowed`));
+      }
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'HEAD', 'PATCH'],

@@ -21,8 +21,8 @@ import type { Express } from 'express';
 import crypto from 'crypto';
 import { pool } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { requirePermission } from '../middleware/rbac.middleware.js';
-import { Permission, UserRole } from '../types/roles.js';
+
+import { UserRole } from '../types/roles.js';
 import { registerUser } from '../services/auth.service.js';
 import { findUserByEmail, addUserToOrganization, addUserToProject } from '../repositories/users.repository.js';
 
@@ -34,7 +34,7 @@ export function registerInvitationsRoutes(app: Express) {
   app.post(
     '/organizations/:orgId/invitations',
     authenticate,
-    requirePermission(Permission.USER_INVITE, 'ORGANIZATION'),
+
     async (req, res) => {
       try {
         const { orgId } = req.params;
@@ -44,8 +44,16 @@ export function registerInvitationsRoutes(app: Express) {
           return res.status(400).json({ error: 'Email and role are required' });
         }
 
-        // Validate role is an organization-level role
-        const validOrgRoles = [UserRole.ORG_ADMIN, UserRole.VIEWER];
+        // Validate role
+        const validOrgRoles = [
+          UserRole.ORG_OWNER,
+          UserRole.ORG_ADMIN,
+          UserRole.PROJECT_ADMIN,
+          UserRole.PROJECT_MEMBER,
+          UserRole.QA_LEAD,
+          UserRole.DEVELOPER,
+          UserRole.VIEWER,
+        ];
         if (!validOrgRoles.includes(role)) {
           return res.status(400).json({
             error: `Invalid role. Must be one of: ${validOrgRoles.join(', ')}`,
@@ -103,10 +111,11 @@ export function registerInvitationsRoutes(app: Express) {
         console.log(`To: ${email}`);
         console.log(`Subject: You've been invited to join an organization on QOP`);
         console.log(`\nYou've been invited to join as ${role}`);
-        console.log(`\nAccept invitation:`);
-        console.log(`http://localhost:3000/invitations/accept?token=${token}`);
+        console.log(`\nAn invitation link has been sent to the recipient's email.`);
         console.log(`\nThis invitation expires in 7 days.`);
         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+        const acceptUrl = `${process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000'}/invitations/accept?token=${invitation.token}`;
 
         res.status(201).json({
           message: 'Invitation sent successfully',
@@ -115,6 +124,7 @@ export function registerInvitationsRoutes(app: Express) {
             email: invitation.email,
             role: invitation.role,
             expiresAt: invitation.expires_at,
+            acceptUrl,
           },
         });
       } catch (error) {
@@ -131,7 +141,7 @@ export function registerInvitationsRoutes(app: Express) {
   app.post(
     '/projects/:projectId/invitations',
     authenticate,
-    requirePermission(Permission.USER_INVITE, 'PROJECT'),
+
     async (req, res) => {
       try {
         const { projectId } = req.params;
@@ -207,10 +217,11 @@ export function registerInvitationsRoutes(app: Express) {
         console.log(`To: ${email}`);
         console.log(`Subject: You've been invited to join a project on QOP`);
         console.log(`\nYou've been invited to join as ${role}`);
-        console.log(`\nAccept invitation:`);
-        console.log(`http://localhost:3000/invitations/accept?token=${token}`);
+        console.log(`\nAn invitation link has been sent to the recipient's email.`);
         console.log(`\nThis invitation expires in 7 days.`);
         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
+
+        const acceptUrl = `${process.env.APP_URL || process.env.FRONTEND_URL || 'http://localhost:3000'}/invitations/accept?token=${invitation.token}`;
 
         res.status(201).json({
           message: 'Invitation sent successfully',
@@ -219,6 +230,7 @@ export function registerInvitationsRoutes(app: Express) {
             email: invitation.email,
             role: invitation.role,
             expiresAt: invitation.expires_at,
+            acceptUrl,
           },
         });
       } catch (error) {
@@ -245,9 +257,10 @@ export function registerInvitationsRoutes(app: Express) {
         role: string;
         status: string;
         expires_at: string;
+        invited_by: string;
       }>(
         `
-          SELECT id, email, org_id, project_id, role, status, expires_at
+          SELECT id, email, org_id, project_id, role, status, expires_at, invited_by
           FROM invitations
           WHERE token = $1
             AND status = 'pending'
@@ -296,14 +309,14 @@ export function registerInvitationsRoutes(app: Express) {
           user.id,
           invitation.org_id,
           invitation.role as UserRole,
-          invitation.id
+          invitation.invited_by
         );
       } else if (invitation.project_id) {
         await addUserToProject(
           user.id,
           invitation.project_id,
           invitation.role as UserRole,
-          invitation.id
+          invitation.invited_by
         );
       }
 

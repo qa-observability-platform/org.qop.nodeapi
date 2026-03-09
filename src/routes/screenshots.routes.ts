@@ -4,6 +4,7 @@ import path from 'path';
 import fs from 'fs';
 import { pool } from '../db/pool.js';
 import { automationAuth } from '../middleware/automationAuth.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 import { logger } from '../utils/logger.js';
 
 const router = express.Router();
@@ -183,7 +184,7 @@ router.post('/upload', upload.single('screenshot'), async (req: Request, res: Re
  * GET /api/screenshots/:id
  * Get screenshot file by ID (from file system or database)
  */
-router.get('/:id', async (req: Request, res: Response) => {
+router.get('/:id', authenticate, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
 
@@ -236,7 +237,7 @@ router.get('/:id', async (req: Request, res: Response) => {
  * GET /api/screenshots/execution/:executionId
  * Get all screenshots for a test execution
  */
-router.get('/execution/:executionId', async (req: Request, res: Response) => {
+router.get('/execution/:executionId', authenticate, async (req: Request, res: Response) => {
   try {
     const { executionId } = req.params;
 

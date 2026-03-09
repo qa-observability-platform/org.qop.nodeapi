@@ -36,7 +36,7 @@ import { config } from '../config/env.js';
 import { logger } from '../utils/logger.js';
 import { authenticate } from '../middleware/auth.middleware.js';
 import { getUserWithRoles } from '../repositories/users.repository.js';
-import { UserRole } from '../types/roles.js';
+
 
 export function registerAuthRoutes(app: Express) {
   /**
@@ -99,7 +99,7 @@ export function registerAuthRoutes(app: Express) {
             INSERT INTO user_organizations (user_id, org_id, role)
             VALUES ($1, $2, $3)
           `,
-          [user.id, organization.id, UserRole.ORG_OWNER]
+          [user.id, organization.id, 'ORG_OWNER']
         );
 
         await client.query('COMMIT');
@@ -111,8 +111,7 @@ export function registerAuthRoutes(app: Express) {
         console.log(`To: ${email}`);
         console.log(`Subject: Verify your QOP account`);
         console.log(`\nHi ${firstName || 'there'},`);
-        console.log(`\nWelcome to QOP! Please verify your email by clicking:`);
-        console.log(`http://localhost:3000/auth/verify-email?token=${user.roles[0]?.scopeId || 'TOKEN'}`);
+        console.log(`\nWelcome to QOP! A verification link has been sent to your email.`);
         console.log('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
 
         res.status(201).json({

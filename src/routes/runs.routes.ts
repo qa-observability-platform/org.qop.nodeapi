@@ -10,8 +10,8 @@ import {
 } from '../repositories/testCases.repository.js';
 import { pool } from '../db/pool.js';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { requirePermission } from '../middleware/rbac.middleware.js';
-import { Permission } from '../types/roles.js';
+
+
 
 export function registerRunsRoutes(app: Express) {
   /**

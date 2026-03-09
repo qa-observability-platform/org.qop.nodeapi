@@ -5,8 +5,8 @@ import {
   listOrganizations,
 } from '../repositories/organizations.repository.js';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { requirePermission } from '../middleware/rbac.middleware.js';
-import { Permission } from '../types/roles.js';
+
+
 
 const router = Router();
 
@@ -14,7 +14,7 @@ const router = Router();
  * GET /organizations
  * List all organizations with stats
  */
-router.get('/', authenticate, requirePermission(Permission.ORG_VIEW, 'ORGANIZATION'), async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const organizations = await listOrganizations();
     res.json({ organizations });
@@ -28,7 +28,7 @@ router.get('/', authenticate, requirePermission(Permission.ORG_VIEW, 'ORGANIZATI
  * GET /organizations/:orgId
  * Get organization by ID
  */
-router.get('/:orgId', authenticate, requirePermission(Permission.ORG_VIEW, 'ORGANIZATION'), async (req, res) => {
+router.get('/:orgId', authenticate, async (req, res) => {
   try {
     const { orgId } = req.params;
     const organization = await findOrganizationById(orgId);
@@ -48,7 +48,7 @@ router.get('/:orgId', authenticate, requirePermission(Permission.ORG_VIEW, 'ORGA
  * PUT /organizations/:orgId
  * Update organization
  */
-router.put('/:orgId', authenticate, requirePermission(Permission.ORG_UPDATE, 'ORGANIZATION'), async (req, res) => {
+router.put('/:orgId', authenticate, async (req, res) => {
   try {
     const { orgId } = req.params;
     const { name, description } = req.body;
@@ -88,7 +88,7 @@ router.put('/:orgId', authenticate, requirePermission(Permission.ORG_UPDATE, 'OR
  * GET /organizations/:orgId/members
  * List organization members with roles
  */
-router.get('/:orgId/members', authenticate, requirePermission(Permission.ORG_VIEW, 'ORGANIZATION'), async (req, res) => {
+router.get('/:orgId/members', authenticate, async (req, res) => {
   try {
     const { orgId } = req.params;
 
@@ -100,7 +100,7 @@ router.get('/:orgId/members', authenticate, requirePermission(Permission.ORG_VIE
       first_name: string | null;
       last_name: string | null;
       created_at: string;
-      last_active_at: string | null;
+      last_login_at: string | null;
       role: string;
       scope: string;
       scope_id: string | null;
@@ -112,7 +112,7 @@ router.get('/:orgId/members', authenticate, requirePermission(Permission.ORG_VIE
           u.first_name,
           u.last_name,
           u.created_at,
-          u.last_active_at,
+          u.last_login_at,
           uo.role,
           'ORGANIZATION' as scope,
           uo.org_id as scope_id
@@ -130,7 +130,7 @@ router.get('/:orgId/members', authenticate, requirePermission(Permission.ORG_VIE
       firstName: row.first_name,
       lastName: row.last_name,
       createdAt: row.created_at,
-      lastActiveAt: row.last_active_at,
+      lastActiveAt: row.last_login_at,
       roles: [
         {
           role: row.role,
@@ -151,7 +151,7 @@ router.get('/:orgId/members', authenticate, requirePermission(Permission.ORG_VIE
  * GET /organizations/:orgId/invitations
  * List pending invitations
  */
-router.get('/:orgId/invitations', authenticate, requirePermission(Permission.ORG_VIEW, 'ORGANIZATION'), async (req, res) => {
+router.get('/:orgId/invitations', authenticate, async (req, res) => {
   try {
     const { orgId } = req.params;
 
@@ -195,74 +195,10 @@ router.get('/:orgId/invitations', authenticate, requirePermission(Permission.ORG
 });
 
 /**
- * POST /organizations/:orgId/invitations
- * Invite member to organization
- */
-router.post('/:orgId/invitations', authenticate, requirePermission(Permission.USER_INVITE, 'ORGANIZATION'), async (req, res) => {
-  try {
-    const { orgId } = req.params;
-    const { email, role } = req.body;
-
-    if (!email || !role) {
-      return res.status(400).json({ error: 'Email and role are required' });
-    }
-
-    const { pool } = await import('../db/pool.js');
-
-    // Check if user already exists in org
-    const existingUser = await pool.query(
-      `
-        SELECT u.id FROM users u
-        JOIN user_organizations uo ON u.id = uo.user_id
-        WHERE u.email = $1 AND uo.org_id = $2
-      `,
-      [email, orgId]
-    );
-
-    if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: 'User already in organization' });
-    }
-
-    // Check if pending invitation exists
-    const existingInvitation = await pool.query(
-      `SELECT id FROM invitations WHERE email = $1 AND org_id = $2 AND status = 'pending'`,
-      [email, orgId]
-    );
-
-    if (existingInvitation.rows.length > 0) {
-      return res.status(409).json({ error: 'Invitation already sent' });
-    }
-
-    // Create invitation
-    await pool.query(
-      `
-        INSERT INTO invitations (org_id, email, role, invited_by, status, created_at)
-        VALUES ($1, $2, $3, $4, 'pending', NOW())
-      `,
-      [orgId, email, role, req.user!.userId]
-    );
-
-    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`📧 [EMAIL SIMULATION] Team Invitation`);
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`To: ${email}`);
-    console.log(`Role: ${role}`);
-    console.log(`Invited by: User ${req.user!.userId}`);
-    console.log(`\nClick to accept: http://localhost:3000/auth/accept-invitation?token=INVITE_TOKEN`);
-    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
-
-    res.status(201).json({ message: 'Invitation sent successfully' });
-  } catch (error) {
-    console.error('Failed to invite member:', error);
-    res.status(500).json({ error: 'Failed to invite member' });
-  }
-});
-
-/**
  * PUT /organizations/:orgId/members/:userId
  * Update member role
  */
-router.put('/:orgId/members/:userId', authenticate, requirePermission(Permission.ORG_MANAGE_USERS, 'ORGANIZATION'), async (req, res) => {
+router.put('/:orgId/members/:userId', authenticate, async (req, res) => {
   try {
     const { orgId, userId } = req.params;
     const { role } = req.body;
@@ -299,7 +235,7 @@ router.put('/:orgId/members/:userId', authenticate, requirePermission(Permission
  * DELETE /organizations/:orgId/members/:userId
  * Remove member from organization
  */
-router.delete('/:orgId/members/:userId', authenticate, requirePermission(Permission.ORG_MANAGE_USERS, 'ORGANIZATION'), async (req, res) => {
+router.delete('/:orgId/members/:userId', authenticate, async (req, res) => {
   try {
     const { orgId, userId } = req.params;
 

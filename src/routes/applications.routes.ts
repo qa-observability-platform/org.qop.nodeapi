@@ -3,14 +3,14 @@ import type { Express } from 'express';
 import { pool } from '../db/pool.js';
 import { findProjectByKey } from '../repositories/projects.repository.js';
 import { authenticate } from '../middleware/auth.middleware.js';
-import { requirePermission, requireOrgMembership } from '../middleware/rbac.middleware.js';
-import { Permission } from '../types/roles.js';
+
+
 
 export function registerApplicationsRoutes(app: Express) {
   /**
    * List applications for a project
    */
-  app.get('/projects/:projectKey/applications', authenticate, requireOrgMembership, requirePermission(Permission.APP_VIEW, 'ORGANIZATION'), async (req, res) => {
+  app.get('/projects/:projectKey/applications', authenticate, async (req, res) => {
     try {
       const { projectKey } = req.params;
       const orgId = req.query.orgId as string;
@@ -69,7 +69,7 @@ export function registerApplicationsRoutes(app: Express) {
   /**
    * Get a single application
    */
-  app.get('/projects/:projectKey/applications/:appKey', authenticate, requireOrgMembership, requirePermission(Permission.APP_VIEW, 'ORGANIZATION'), async (req, res) => {
+  app.get('/projects/:projectKey/applications/:appKey', authenticate, async (req, res) => {
     try {
       const { projectKey, appKey } = req.params;
       const orgId = req.query.orgId as string;
@@ -279,7 +279,7 @@ export function registerApplicationsRoutes(app: Express) {
   /**
    * Create a new application in a project
    */
-  app.post('/projects/:projectKey/applications', authenticate, requireOrgMembership, requirePermission(Permission.APP_CREATE, 'ORGANIZATION'), async (req, res) => {
+  app.post('/projects/:projectKey/applications', authenticate, async (req, res) => {
     try {
       const { projectKey } = req.params;
       const { name, appKey, runnerType, repoUrl, frameworkVersion } = req.body;

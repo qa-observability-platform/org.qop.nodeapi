@@ -39,7 +39,7 @@ import type {
   JwtPayload,
   SessionTokenPayload,
 } from '../types/auth.js';
-import { UserRole } from '../types/roles.js';
+import { UserRole } from '../types/roles.js'; // kept for assignUserToOrganization default
 
 const SALT_ROUNDS = 10;
 

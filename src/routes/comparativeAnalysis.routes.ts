@@ -17,6 +17,7 @@
 import express from 'express';
 import { pool } from '../db/pool.js';
 import { logger } from '../utils/logger.js';
+import { authenticate } from '../middleware/auth.middleware.js';
 
 const router = express.Router();
 
@@ -26,7 +27,7 @@ const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://localhost:8000';
  * GET /api/comparative-analysis/jobs/:appId
  * Get list of jobs for an application (for comparison selection)
  */
-router.get('/jobs/:appId', async (req, res) => {
+router.get('/jobs/:appId', authenticate, async (req, res) => {
   try {
     const { appId } = req.params;
     const { limit = 50 } = req.query;
@@ -91,7 +92,7 @@ router.get('/jobs/:appId', async (req, res) => {
  *   applicationId: string
  * }
  */
-router.post('/compare', async (req, res) => {
+router.post('/compare', authenticate, async (req, res) => {
   try {
     const { currentRunId, compareRunId, applicationId } = req.body;
 
@@ -385,9 +386,7 @@ router.post('/compare', async (req, res) => {
     console.error('Comparative analysis error:', error);
     res.status(500).json({
       success: false,
-      error: 'Failed to perform comparative analysis',
-      details: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      error: 'Failed to perform comparative analysis'
     });
   }
 });
