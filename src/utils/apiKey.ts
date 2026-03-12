@@ -10,10 +10,11 @@ export function hashApiKey(rawKey: string): string {
 }
 
 /**
- * Generate a new random API key (48 chars hex).
- * Example output: "qop_pk_..." style token.
+ * Generate a new random API key (64 chars hex).
+ * Example output: "qop_a1b2c3d4..." style token.
+ * Matches the format used by the UI (projectApiKeys.repository).
  */
 export function generateApiKey(): string {
-  const random = crypto.randomBytes(24).toString('hex'); // 48 chars
-  return `qop_pk_${random}`;
+  const random = crypto.randomBytes(32).toString('hex'); // 64 chars
+  return `qop_${random}`;
 }
