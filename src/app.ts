@@ -29,7 +29,7 @@ export function createApp() {
   const app = express();
 
   // CRITICAL: Enable CORS FIRST before any other middleware
-  const allowedOrigins = (process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000')
+  const allowedOrigins = (process.env.CORS_ORIGIN || process.env.FRONTEND_URL || process.env.APP_URL || 'http://localhost:3000')
     .split(',')
     .map(o => o.trim());
 
