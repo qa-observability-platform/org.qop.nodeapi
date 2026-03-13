@@ -36,9 +36,9 @@ export function registerProjectsRoutes(app: Express) {
       if (!projectKey || !name) {
         return res.status(400).json({ error: 'projectKey and name are required' });
       }
-      if (!/^[a-z0-9-]+$/.test(projectKey)) {
+      if (!/^[A-Za-z0-9]+-[0-9]+$/.test(projectKey) && !/^[a-z0-9-]+$/.test(projectKey)) {
         return res.status(400).json({
-          error: 'projectKey must contain only lowercase letters, numbers, and hyphens',
+          error: 'projectKey must be in format PREFIX-NNN (e.g. MYEC-001) or lowercase-hyphen format',
         });
       }
       const available = await isProjectKeyAvailable(orgId, projectKey);
