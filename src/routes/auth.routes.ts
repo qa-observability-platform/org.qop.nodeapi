@@ -122,10 +122,6 @@ export function registerAuthRoutes(app: Express) {
             firstName: user.firstName,
             lastName: user.lastName,
           },
-          organization: {
-            id: organization.id,
-            name: organization.name,
-          },
         });
       } catch (error) {
         await client.query('ROLLBACK');
@@ -164,7 +160,6 @@ export function registerAuthRoutes(app: Express) {
           firstName: result.user.firstName,
           lastName: result.user.lastName,
           isEmailVerified: result.user.isEmailVerified,
-          roles: result.user.roles,
         },
         tokens: result.tokens,
       });
