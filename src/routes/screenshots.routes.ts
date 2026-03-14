@@ -181,6 +181,75 @@ router.post('/upload', upload.single('screenshot'), async (req: Request, res: Re
 });
 
 /**
+ * POST /api/screenshots/upload-by-run
+ * Upload a screenshot using run_id + test_key instead of test_case_execution_id.
+ * Used by pytest/selenium reporters that don't have the execution ID.
+ */
+router.post('/upload-by-run', upload.single('screenshot'), async (req: Request, res: Response) => {
+  try {
+    const { run_id, test_key, screenshot_type = 'failure' } = req.body;
+    const file = req.file;
+
+    if (!file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    if (!run_id || !test_key) {
+      fs.unlinkSync(file.path);
+      return res.status(400).json({ error: 'run_id and test_key are required' });
+    }
+
+    // Look up the test_case_execution_id from run_id + test_key
+    const executionResult = await pool.query(
+      `SELECT tce.id
+       FROM test_case_executions tce
+       JOIN test_runs tr ON tr.id = tce.test_run_id
+       JOIN test_case_master tcm ON tcm.id = tce.test_case_id
+       WHERE tr.run_id = $1 AND tcm.test_key = $2
+       ORDER BY tce.id DESC
+       LIMIT 1`,
+      [run_id, test_key]
+    );
+
+    if (executionResult.rows.length === 0) {
+      fs.unlinkSync(file.path);
+      return res.status(404).json({ error: 'Test execution not found for given run_id and test_key' });
+    }
+
+    const test_case_execution_id = executionResult.rows[0].id;
+    const relativePath = path.relative(process.cwd(), file.path);
+
+    const result = await pool.query(
+      `INSERT INTO screenshots
+       (test_case_execution_id, file_name, file_path, mime_type, file_size, screenshot_type, storage_type)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *`,
+      [
+        test_case_execution_id,
+        file.originalname,
+        relativePath,
+        file.mimetype,
+        file.size,
+        screenshot_type,
+        'local'
+      ]
+    );
+
+    logger.info('Screenshot uploaded via run key', {
+      id: result.rows[0].id,
+      run_id,
+      test_key,
+      execution_id: test_case_execution_id,
+    });
+
+    res.status(201).json({ success: true, screenshot: result.rows[0] });
+  } catch (error: any) {
+    logger.error('Error uploading screenshot by run key', { error: error.message });
+    res.status(500).json({ error: 'Failed to upload screenshot' });
+  }
+});
+
+/**
  * GET /api/screenshots/:id
  * Get screenshot file by ID (from file system or database)
  */
